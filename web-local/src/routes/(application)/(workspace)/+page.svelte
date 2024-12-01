@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-  <title>Rill Developer</title>
+  <title>Hacienda</title>
 </svelte:head>
 
 {#if data.initialized}

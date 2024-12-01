@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  hacienda:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hacienda
+    ports:
+      - "9009:9009"  # Default Rill port
+    volumes:
+      - ./data:/home/rill/data  # Data persistence
+      - ./config:/home/rill/config  # Configuration files
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - hacienda-network
+
+  # Optional Druid service if needed
+  druid:
+    build:
+      context: .
+      dockerfile: scripts/druid-micro.dockerfile
+    container_name: hacienda-druid
+    ports:
+      - "8082:8082"  # Druid coordinator
+    volumes:
+      - druid-data:/opt/druid/data
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+    networks:
+      - hacienda-network
+
+volumes:
+  druid-data:
+    driver: local
+
+networks:
+  hacienda-network:
+    driver: bridge

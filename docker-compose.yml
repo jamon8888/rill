@@ -1,48 +1,73 @@
-version: '3.8'
-
+name: rill-platform
 services:
-  hacienda:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: hacienda
+  rill-admin:
+    image: rill
+    working_dir: /app
+    command: ["start", "--accept"]
     ports:
-      - "9009:9009"  # Default Rill port
-    volumes:
-      - ./data:/home/rill/data  # Data persistence
-      - ./config:/home/rill/config  # Configuration files
+      - "8080:8080"  # HTTP port
+      - "9090:9090"  # gRPC port
+    env_file:
+      - .env
     environment:
-      - TZ=UTC
-    restart: unless-stopped
+      - RILL_HOME=/app/data
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9009/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
-    networks:
-      - hacienda-network
+      start_period: 40s
 
-  # Optional Druid service if needed
-  druid:
-    build:
-      context: .
-      dockerfile: scripts/druid-micro.dockerfile
-    container_name: hacienda-druid
-    ports:
-      - "8082:8082"  # Druid coordinator
-    volumes:
-      - druid-data:/opt/druid/data
+  postgres:
+    image: postgres:15-alpine
     environment:
-      - TZ=UTC
-    restart: unless-stopped
-    networks:
-      - hacienda-network
+      - POSTGRES_USER=rilluser
+      - POSTGRES_PASSWORD=rillpassword
+      - POSTGRES_DB=rill
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rilluser -d rill"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  rill-cli:
+    image: rill
+    working_dir: /app
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    environment:
+      - RILL_HOME=/app/data
+    depends_on:
+      - rill-admin
 
 volumes:
-  druid-data:
-    driver: local
-
-networks:
-  hacienda-network:
-    driver: bridge
+  postgres_data:
+  redis_data:
